@@ -1,0 +1,272 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.1'
+      jupytext_version: 1.2.3
+  kernelspec:
+    display_name: R 3.6.1
+    language: R
+    name: ir361
+---
+
+# 9. Consolidate observations
+
+
+## Setup
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+sample_file <- '../preprocessed_data/sample_2019-09-10.feather'
+company_groups_file <- '../preprocessed_data/company_groups_2019-09-10.feather'
+m_as_file <- '../preprocessed_data/m_as_2019-09-10.feather'
+```
+
+## Read data
+
+```{r}
+sample <- feather::read_feather(sample_file)
+testit::assert(nrow(sample[duplicated(select(sample, YEAR, COMMODITY, OPERATOR_ID)), ]) == 0)
+glimpse(sample)
+```
+
+```{r}
+company_groups <- feather::read_feather(company_groups_file)
+glimpse(company_groups)
+```
+
+```{r}
+m_as_orig <- feather::read_feather(m_as_file)
+glimpse(m_as_orig)
+```
+
+## 9.1 Calculate change
+
+```{r}
+sample <- sample %>%
+    group_by(OPERATOR_ID, COMMODITY) %>%
+    arrange(YEAR) %>%
+    mutate(CHANGE = MILES - lag(MILES, 1))
+glimpse(subset(sample, YEAR > 2010))
+```
+
+## 9.2 Consolidate observations
+
+
+### 9.2.1 Company groups
+
+```{r}
+company_groups <- rename(company_groups, new_name = name)
+sample <- left_join(sample, company_groups, by=c('OPERATOR_ID' = 'members'))
+testit::assert(nrow(sample[duplicated(select(sample, YEAR, COMMODITY, OPERATOR_ID)), ]) == 0)
+glimpse(subset(sample, !is.na(sample$new_name)))
+```
+
+```{r}
+sample_no_group <- subset(sample, is.na(sample$new_name))
+sample_group <- subset(sample, !is.na(sample$new_name))
+
+sample_group <- sample_group %>%
+    group_by(new_name, YEAR, COMMODITY) %>%
+    summarize(OPERATOR_ID = first(new_name), 
+              NAME              = first(new_name),
+              MILES             = sum(MILES, na.rm=TRUE), 
+              AGE_UNKNOWN_MILES = sum(AGE_UNKNOWN_MILES, na.rm=TRUE), 
+              MILES_PRE_1940    = sum(MILES_PRE_1940, na.rm=TRUE), 
+              MILES_1940      = sum(MILES_1940, na.rm=TRUE),
+              MILES_1950      = sum(MILES_1950, na.rm=TRUE),
+              MILES_1960      = sum(MILES_1960, na.rm=TRUE),
+              MILES_1970      = sum(MILES_1970, na.rm=TRUE),
+              MILES_1980      = sum(MILES_1980, na.rm=TRUE),
+              MILES_1990      = sum(MILES_1990, na.rm=TRUE),
+              MILES_2000      = sum(MILES_2000, na.rm=TRUE),
+              MILES_2010      = sum(MILES_2010, na.rm=TRUE),
+              PARENT            = first(PARENT), 
+              INCIDENTS         = sum(INCIDENTS, na.rm=TRUE), 
+              SIGNIFICANT_INCIDENTS = sum(SIGNIFICANT_INCIDENTS, na.rm=TRUE), 
+              GROUP = 'group') %>%
+    # We calculate the avg age and change once all groupings (including M&As below), are taken care of
+    ungroup()
+
+glimpse(sample_group)
+```
+
+```{r}
+sample_no_group$GROUP = "not group"
+
+sample <- bind_rows(sample_group, sample_no_group)
+sample <- sample[ , (names(sample) != "new_name")]
+testit::assert(nrow(sample[duplicated(select(sample, YEAR, COMMODITY, OPERATOR_ID)), ]) == 0)
+glimpse(sample_n(sample, 10))
+```
+
+```{r}
+testit::assert(nrow(subset(sample, YEAR == 2008)) > 0)
+table(sample$GROUP)
+```
+
+### 9.2.2 M&As
+
+```{r}
+m_as <- rename(m_as_orig, new_name = name)
+
+# We need to fill in the NA values for start and end_year with values that always match, because when logical conditions encounter NAs
+# they will always be wrong. The filtering in those cases happens because the new_name column is NA.
+m_as[is.na(m_as$start_year), ]$start_year <- -9999
+m_as[is.na(m_as$end_year), ]$end_year <- 9999
+
+years = data.frame(year = unique(sample$YEAR))
+m_as <- merge(m_as, years)
+m_as <- m_as %>%
+    filter(year >= start_year & year < end_year) %>%
+    select(members, new_name, year) %>%
+    distinct()
+m_as$m_a = TRUE
+
+glimpse(m_as)
+```
+
+```{r}
+sample <- left_join(sample, m_as, by=c('OPERATOR_ID' = 'members', 'YEAR' = 'year'))
+sample$m_a <- replace_na(sample$m_a, FALSE)
+
+glimpse(sample)
+```
+
+```{r}
+sample_m_as <- subset(sample, m_a == TRUE)
+sample_no_m_as <- subset(sample, m_a == FALSE)
+
+glimpse(sample_m_as)
+```
+
+```{r}
+sample_m_as <- sample_m_as %>%
+    group_by(new_name, YEAR, COMMODITY) %>%
+    summarize(OPERATOR_ID = first(new_name), 
+              NAME              = first(new_name),
+              MILES             = sum(MILES, na.rm=TRUE), 
+              AGE_UNKNOWN_MILES = sum(AGE_UNKNOWN_MILES, na.rm=TRUE), 
+              MILES_PRE_1940    = sum(MILES_PRE_1940, na.rm=TRUE), 
+              MILES_1940        = sum(MILES_1940, na.rm=TRUE),
+              MILES_1950        = sum(MILES_1950, na.rm=TRUE),
+              MILES_1960        = sum(MILES_1960, na.rm=TRUE),
+              MILES_1970        = sum(MILES_1970, na.rm=TRUE),
+              MILES_1980        = sum(MILES_1980, na.rm=TRUE),
+              MILES_1990        = sum(MILES_1990, na.rm=TRUE),
+              MILES_2000        = sum(MILES_2000, na.rm=TRUE),
+              MILES_2010        = sum(MILES_2010, na.rm=TRUE),
+              PARENT            = first(PARENT), 
+              INCIDENTS         = sum(INCIDENTS, na.rm=TRUE), 
+              SIGNIFICANT_INCIDENTS = sum(SIGNIFICANT_INCIDENTS, na.rm=TRUE), 
+              GROUP = 'm&a') %>%
+    ungroup()
+
+glimpse(sample_m_as)
+```
+
+```{r}
+sample <- bind_rows(sample_m_as, sample_no_m_as)
+sample <- sample[ , !(names(sample) %in% c("new_name", "m_a"))]
+testit::assert(nrow(sample[duplicated(select(sample, YEAR, COMMODITY, OPERATOR_ID)), ]) == 0)
+testit::assert(nrow(subset(sample, YEAR == 2008)) > 0)
+glimpse(sample)
+```
+
+## 9.3 Mark M&A years
+
+```{r}
+glimpse(m_as_orig)
+```
+
+```{r}
+m_as_orig$start_year <- as.numeric(m_as_orig$start_year)
+m_as_orig <- select(m_as_orig, -c(name))
+
+m_as_start <- subset(m_as_orig, !is.na(start_year))
+m_as_start$m_a_start <- TRUE
+
+sample <- left_join(sample, m_as_start, by=c("OPERATOR_ID" = "members", "YEAR" = "start_year"))
+testit::assert(nrow(subset(sample, YEAR == 2008)) > 0)
+testit::assert(nrow(sample[duplicated(select(sample, YEAR, COMMODITY, OPERATOR_ID)), ]) == 0)
+
+glimpse(sample)
+```
+
+```{r}
+m_as_orig$end_year <- as.numeric(m_as_orig$end_year)
+
+m_as_end <- subset(m_as_orig, !is.na(end_year))
+# We add 1 to the year, so the year we match on is the first year after the group has ceased to exist.
+m_as_end$end_year <- m_as_end$end_year + 1
+m_as_end$m_a_end <- TRUE
+m_as_end <- unique(m_as_end)
+
+sample <- left_join(sample, m_as_end, by=c("OPERATOR_ID" = "members", "YEAR" = "end_year"))
+testit::assert(nrow(subset(sample, YEAR == 2008)) > 0)
+testit::assert(nrow(sample[duplicated(select(sample, YEAR, COMMODITY, OPERATOR_ID)), ]) == 0)
+
+glimpse(sample)
+```
+
+```{r}
+sample$M_A <- (sample$m_a_start | sample$m_a_end)
+sample <- select(sample, -c(end_year, m_a_start, start_year, m_a_end))
+sample$M_A <- replace_na(sample$M_A, FALSE)
+
+glimpse(sample)
+```
+
+## 9.4 Calculate avg age, change for new groups
+
+```{r}
+testit::assert(nrow(subset(sample, YEAR == 2008)) > 0)
+sample <- sample %>%
+    group_by(OPERATOR_ID, COMMODITY) %>%
+    arrange(YEAR) %>%
+    mutate(CHANGE = MILES - lag(MILES, 1))
+glimpse(subset(sample, YEAR > 2010))
+```
+
+```{r}
+sample$AVG_AGE <- ((sample$MILES_PRE_1940 * 90 +
+                    sample$MILES_1940 * 75 +
+                    sample$MILES_1950 * 65 +
+                    sample$MILES_1960 * 55 +
+                    sample$MILES_1970 * 45 +
+                    sample$MILES_1980 * 35 +
+                    sample$MILES_1990 * 25 +
+                    sample$MILES_2000 * 15 +
+                    sample$MILES_2010 * 05) /
+                   (sample$MILES_PRE_1940 +
+                    sample$MILES_1940 +
+                    sample$MILES_1950 +
+                    sample$MILES_1960 +
+                    sample$MILES_1970 +
+                    sample$MILES_1980 +
+                    sample$MILES_1990 +
+                    sample$MILES_2000 +
+                    sample$MILES_2010))
+
+glimpse(sample)
+```
+
+```{r}
+test <- select(sample, COMMODITY, YEAR, OPERATOR_ID)
+test <- test[duplicated(test), ]
+testit::assert(nrow(test) == 0)
+```
+
+## 9.5 Save
+
+```{r}
+testit::assert(nrow(subset(sample, YEAR == 2008)) > 0)
+feather::write_feather(sample, paste0("../preprocessed_data/sample_consolidated_", Sys.Date(), ".feather"))
+haven::write_dta(sample, paste0("../stata_data/sample_consolidated_", Sys.Date(), ".dta"))
+```
