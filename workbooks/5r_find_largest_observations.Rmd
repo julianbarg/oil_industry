@@ -1,0 +1,119 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.1'
+      jupytext_version: 1.2.3
+  kernelspec:
+    display_name: R 3.6.1
+    language: R
+    name: ir361
+---
+
+# 5. Find largest observations (R)
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+pre_sample_file = "../preprocessed_data/pre_sample_2019-09-08.feather"
+```
+
+## Load data
+
+```{r}
+pipelines <- feather::read_feather(pre_sample_file)
+glimpse(pipelines)
+```
+
+## 5.1 Find largest observations
+
+
+Ensure that we don't remove too many observations.
+
+```{r}
+sample_size <- length(unique(pipelines$OPERATOR_ID))
+print(sample_size)
+```
+
+```{r}
+offshore_size <- pipelines %>%
+    group_by(OPERATOR_ID) %>%
+    mutate(max_offshore = max(PERC_OFFSHORE)) %>%
+    filter(max_offshore == 0) %>%
+    ungroup() %>%
+    {length(unique(.$OPERATOR_ID))}
+print(offshore_size)
+
+testit::assert(sample_size == offshore_size)
+```
+
+```{r}
+pipelines %>%
+    group_by(OPERATOR_ID, COMMODITY) %>%
+    top_n(1, MILES) %>%
+    ungroup() %>%
+    select(OPERATOR_ID, YEAR, NAME, COMMODITY, MILES) %>%
+    top_n(10, MILES) %>%
+    arrange(desc(MILES))
+```
+
+#### Largest for the sum of all types
+
+```{r}
+unique(pipelines$COMMODITY)
+```
+
+Check whether any operator ID has more than the maximum of five expected entries.
+
+```{r}
+pipelines %>%
+    group_by(YEAR, OPERATOR_ID) %>%
+    summarize(n = n()) %>%
+    ungroup() %>%
+    {table(.$n)}
+```
+
+Everything seems to be A-Okay.
+
+```{r}
+largest_pipeline_operators <- pipelines %>%
+    group_by(OPERATOR_ID, COMMODITY) %>%
+    # Make sure we retrieve the latest name, no matter what year has to most extensive pipeline network
+    arrange(desc(YEAR)) %>%
+    mutate(NAME = first(NAME)) %>%
+    group_by(OPERATOR_ID, YEAR) %>%
+    summarize(NAME = first(NAME), TOTAL_MILES = sum(MILES)) %>%
+    group_by(OPERATOR_ID) %>%
+    top_n(1, TOTAL_MILES) %>%
+    # Year as tie breaker
+    top_n(1, YEAR) %>%
+    ungroup() %>%
+    arrange(desc(TOTAL_MILES))
+
+head(largest_pipeline_operators, 200)
+```
+
+## 5.2 Save result
+
+```{r}
+feather::write_feather(largest_pipeline_operators, paste0("../preprocessed_data/largest_companies_", Sys.Date(), ".feather"))
+```
+
+We also write the results to .csv, in order to add the parent company names. This column, we add as empty for now.
+
+```{r}
+largest_pipeline_operators$PARENT <- NA
+```
+
+```{r}
+readr::write_csv(largest_pipeline_operators, paste0("../input/largest_companies_raw_", Sys.Date(), ".csv"))
+```
+
+```{r}
+
+```
