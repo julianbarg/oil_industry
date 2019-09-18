@@ -1,0 +1,124 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.1'
+      jupytext_version: 1.2.3
+  kernelspec:
+    display_name: R 3.6.1
+    language: R
+    name: ir361
+---
+
+# 14. Data visualizations
+
+
+## Setup
+
+```{r}
+incidents_selected_file <- '../preprocessed_data/incidents_selected_2019-09-10.feather'
+```
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(ggmap)
+```
+
+```{r}
+key <- readChar('../maps_key.txt', file.info('../maps_key.txt')$size)
+register_google(key=key)
+```
+
+```{r}
+incidents <- feather::read_feather(incidents_selected_file)
+incidents$YEAR <- year(incidents$LOCAL_DATETIME)
+glimpse(incidents)
+```
+
+## 14.1 Visualize incident locations (US)
+
+```{r}
+map <- get_map("lebanon, kansas", zoom = 5, source = "stamen", maptype = "toner-lite", crop = FALSE)
+```
+
+```{r}
+significant_incidents <- subset(incidents, SIGNIFICANT == TRUE & YEAR >= 2010)
+significant_incidents$LOCATION_LATITUDE <- as.numeric(significant_incidents$LOCATION_LATITUDE)
+significant_incidents$LOCATION_LONGITUDE <- as.numeric(significant_incidents$LOCATION_LONGITUDE)
+significant_incidents <-subset(significant_incidents, YEAR < 2019)
+```
+
+```{r}
+ggmap(map, base_layer = ggplot(significant_incidents, aes(LOCATION_LONGITUDE, LOCATION_LATITUDE))) +
+    geom_point(size = 0.3, alpha = 0.2, scatter=1, color = "black")
+```
+
+```{r}
+plot1 <- ggmap(map, base_layer = ggplot(significant_incidents, aes(LOCATION_LONGITUDE, LOCATION_LATITUDE))) +
+    geom_jitter(size = 0.25, alpha = 0.3, color = "brown", width=0.3, height=0.2) +
+    geom_density2d(alpha = 0.5) + 
+    labs(title="Significant pipeline incidents 2010-2018 (with density estimate)", x="Longitude", y="Latitude")
+print(plot1)
+```
+
+```{r}
+ggsave("../drafts/summer_paper/illustrations/incidents.png", plot1)
+```
+
+```{r}
+ggmap(map, base_layer = ggplot(significant_incidents, aes(LOCATION_LONGITUDE, LOCATION_LATITUDE))) +
+    geom_point(size = 0.5, alpha = 0.5, scatter=0.5, color = "brown") +
+    geom_density_2d(rows = 3, ncol = 4) +
+    facet_wrap(~YEAR, nrow=3)
+```
+
+## Visualize incident locations (Gulf of Mexico)
+
+```{r}
+gulf_map <- get_map("gulf of mexico", zoom = 6, source = "stamen", maptype = "toner-lite", crop = FALSE)
+```
+
+```{r}
+ggmap(gulf_map, base_layer = ggplot(significant_incidents, aes(LOCATION_LONGITUDE, LOCATION_LATITUDE))) +
+    geom_point(size = 0.9, alpha = 0.5, scatter=0.6, color = "brown")
+```
+
+## Visualize locations by type
+
+```{r}
+ggmap(map, base_layer = ggplot(significant_incidents, aes(LOCATION_LONGITUDE, LOCATION_LATITUDE))) +
+    geom_point(size = 0.5, alpha = 0.5, scatter=0.5, color = "brown") +
+    geom_density_2d(rows = 3, ncol = 4) +
+    facet_wrap(~COMMODITY)
+```
+
+```{r}
+table(incidents$COMMODITY)
+```
+
+## Summary
+
+
+It seems the number of incidents that occur (or are reported) on offshore pipelines is negligable. We can probably accomplish more accurate modeling results if we exclude offshore pipelines.
+
+
+## 14.2 Incidents per year trend
+
+```{r}
+incidents %>%
+    filter(SIGNIFICANT == TRUE) %>%
+    filter(YEAR > 2002) %>%
+    group_by(YEAR) %>%
+    summarize(INCIDENTS = n()) %>%
+    ggplot(aes(x=YEAR, y=INCIDENTS)) +
+        geom_point() +
+        geom_smooth(method="lm")
+```
+
+```{r}
+table(subset(incidents, SIGNIFICANT==TRUE, YEAR))
+```
