@@ -1,0 +1,168 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.1'
+      jupytext_version: 1.2.3
+  kernelspec:
+    display_name: R 3.6.1
+    language: R
+    name: ir361
+---
+
+# 15. Results exploration
+
+```{r}
+model2_file <- "../results/model2_2019-09-16.xlsx"
+```
+
+```{r}
+library(tidyverse)
+```
+
+## 15.1 Define function 
+
+```{r}
+readxl::read_excel(model2_file, .name_repair = make.names)
+```
+
+```{r}
+plot_effects <- function(results_file, intercept="_cons", linear_effect, plot_range, squared_effect=NA){
+    results <- readxl::read_excel(results_file, .name_repair = make.names)
+
+    intercept <- results[results$X == intercept, ]
+    lin_effect <- results[results$X == linear_effect, ]
+    if (!is.na(squared_effect)){
+        sq_effect <- results[results$X == squared_effect, ]
+    } else {# create tuple with all zeros for subsequent rows to read from
+        sq_effect <- tibble(b=0, ll=0, ul=0)}
+    
+    eq <- function(x){lin_effect$b*x + sq_effect$b*x^2 }
+    eq_lower <- function(x){lin_effect$ll*x + sq_effect$ll*x^2 + intercept$ll - intercept$b}
+    eq_upper <- function(x){lin_effect$ul*x + sq_effect$ul*x^2 + intercept$ul - intercept$b}
+
+    eq_data <- data.frame(x=seq(plot_range[1], plot_range[2], 0.01))
+    eq_data$lower <- sapply(eq_data$x, FUN = eq_lower)
+    eq_data$predicted <- sapply(eq_data$x, FUN = eq)
+    eq_data$upper <- sapply(eq_data$x, FUN = eq_upper)
+    
+    plot <- ggplot(eq_data, aes(x=x, y=predicted)) +
+        geom_line() +
+        geom_hline(yintercept=0, size = 0.3) +
+        geom_line(aes(x=x, y=upper), color="red") +
+        geom_ribbon(aes(ymin=predicted, ymax=upper), fill="red", alpha=0.3) + 
+        geom_line(aes(x=x, y=lower), color="blue") +
+        geom_ribbon(aes(ymin=predicted, ymax=lower), fill="blue", alpha=0.3)
+    
+    return(plot)
+}
+```
+
+```{r}
+results_plot <- plot_effects(model2_file, linear_effect="CHANGE_SD", squared_effect= "CHANGE_SD_SQ", plot_range = c(-2, 2)) +
+    coord_cartesian(xlim=c(-1.5, 1.5)) +
+    labs(title="Effect of Strategic Adjustment on Rate of Significant Incidents", 
+         x="Strategic adjustments\n(Positive means more changes, negative means less changes)", 
+         y="Number of significant incidents", 
+         subtitle="Red and blue show the 90% confidence interval")
+
+results_plot
+```
+
+```{r}
+ggsave("../drafts/summer_paper/illustrations/effect_size.png", results_plot)
+```
+
+## 15.2 All observations
+
+```{r}
+fe_all <- readxl::read_excel(fe_all_file, .name_repair = make.names)
+```
+
+```{r}
+fe_all
+```
+
+```{r}
+intercept_row <- match("_cons", fe_all$X)
+
+intercept_all <- pull(fe_all[intercept_row, "b"])
+intercept_all_lower <- pull(fe_all[intercept_row, "ll"])
+intercept_all_upper <- pull(fe_all[intercept_row, "ul"])
+
+print(c(intercept_all, intercept_all_lower, intercept_all_upper))
+```
+
+```{r}
+lin_row <- match("sd_change_3", fe_all$X)
+
+lin_all <- pull(fe_all[lin_row, "b"])
+lin_all_lower <- pull(fe_all[lin_row, "ll"])
+lin_all_upper <- pull(fe_all[lin_row, "ul"])
+
+print(c(lin_all, lin_all_lower, lin_all_upper))
+```
+
+```{r}
+sq_row <- match("sd_change_sq", fe_all$X)
+
+sq_all <- pull(fe_all[sq_row, "b"])
+sq_all_lower <- pull(fe_all[sq_row, "ll"])
+sq_all_upper <- pull(fe_all[sq_row, "ul"])
+
+print(c(sq_all, sq_all_lower, intercept_all_upper))
+```
+
+```{r}
+eq_all <- function(x){lin_all*x + sq_all*x^2 + intercept_all}
+eq_all_lower <- function(x){lin_all_lower*x + sq_all_lower*x^2 + intercept_all_lower}
+eq_all_upper <- function(x){lin_all_upper*x + sq_all_upper*x^2 + intercept_all_upper}
+
+eq_all_data <- data.frame(x=c(-2200:2200))
+eq_all_data$lower <- sapply(eq_all_data$x, FUN = eq_all_lower)
+eq_all_data$predicted <- sapply(eq_all_data$x, FUN = eq_all)
+eq_all_data$upper <- sapply(eq_all_data$x, FUN = eq_all_upper)
+```
+
+```{r}
+head(eq_all_data)
+```
+
+## All linear
+
+```{r}
+-1.55e-06
+```
+
+```{r}
+
+```
+
+## Small linear
+
+```{r}
+lin_small <- 6.48e-06
+```
+
+```{r}
+sq_small <- 0
+```
+
+```{r}
+eq_small <- function(x){lin_small*x + sq_small*x^2}
+```
+
+```{r}
+ggplot(data = data.frame(x = 0), mapping = aes(x = x)) +
+    stat_function(fun=eq_small) +
+    xlim(-250, 250) + 
+    labs(title="Curve as estimated in FE model")
+    
+```
+
+```{r}
+
+```
