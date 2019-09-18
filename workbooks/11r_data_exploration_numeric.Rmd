@@ -1,0 +1,229 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.1'
+      jupytext_version: 1.2.3
+  kernelspec:
+    display_name: R 3.6.1
+    language: R
+    name: ir361
+---
+
+# 11. Data exploration - model (numeric)
+
+```{r}
+library(tidyverse)
+library(kableExtra)
+```
+
+```{r}
+options(repr.plot.width=4, repr.plot.height=3)
+```
+
+```{r}
+sample_file <- "../preprocessed_data/sample_combined_2019-09-16.feather"
+```
+
+```{r}
+today <- Sys.Date()
+```
+
+## Read data
+
+```{r}
+sample <- feather::read_feather(sample_file)
+glimpse(sample)
+```
+
+## 11.1 Correlation matrix
+
+```{r}
+variables1 <- c("INC_3", "CHANGE_SD", "CHANGE_SD_SQ", "DISC_ADDED", "CONSOLIDATE", "M_A", "M_A_2", "CRUDE_MILES_3", "CRUDE_AVG_AGE_3", 
+                "CRUDExAGE", "HVL_MILES_3", "HVL_AVG_AGE_3", "HVLxAGE", "NON_HVL_MILES_3", "NON_HVL_AVG_AGE_3", "NON_HVLxAGE", "NO_CRUDE", 
+                "NO_HVL", "NO_NON_HVL")
+variable_names1 <- c("Incidts", "Adj.", "Adj sq.", "Miles add", "Consolid.", "MA", "MA t-1", 
+                     "Miles Crude", "Age Crude", "MxA Crude", "M. HVL", "A. HVL", "MxA HVL", "M. Non-HVL", 
+                     "A. Non-HVL", "MxA Non-HVL", "No Crude", "No HVL", "No Non-HVL")
+```
+
+```{r}
+mean_model1 <- sapply(select(sample, variables1), mean, na.rm=TRUE)
+mean_model1 <- round(mean_model1, 2)
+names(mean_model1) <- variable_names1
+head(mean_model1)
+```
+
+```{r}
+sd_model1 <- sapply(select(sample, variables1), sd, na.rm=TRUE)
+sd_model1 <- round(sd_model1, 2)
+names(sd_model1) <- variable_names1
+head(sd_model1)
+```
+
+```{r}
+model1 <- sample %>%
+    select(variables1) %>%
+    as.matrix %>%
+    cor(use="pairwise.complete.obs") %>%
+    {round(., 2)}
+model1[upper.tri(model1)] <- ""
+colnames(model1) <- variable_names1
+rownames(model1) <- variable_names1
+head(model1)
+```
+
+```{r}
+model1 <- cbind("Mean" = mean_model1, "SD" = sd_model1, model1)
+head(model1)
+```
+
+```{r}
+model1_tex <- capture.output(kable(model1, "latex", booktabs=T) %>%
+    kable_styling(latex_options=c("scale_down")))
+```
+
+```{r}
+writeLines(model1_tex, "../drafts/summer_paper/illustrations/summary1.tex")
+```
+
+## Model 2
+
+```{r}
+variables2 <- c("INC_3", "CHANGE_SD", "CHANGE_SD_SQ", "DISC_ADDED", "CONSOLIDATE", "M_A", "M_A_2", "CRUDE_MILES_1940_3", "CRUDE_MILES_1950_3", 
+                "CRUDE_MILES_1960_3", "CRUDE_MILES_1970_3", "CRUDE_MILES_1980_3", "CRUDE_MILES_1990_3", "CRUDE_MILES_2000_3", 
+                "CRUDE_MILES_2010_3", "HVL_MILES_1940_3", "HVL_MILES_1950_3", "HVL_MILES_1960_3", "HVL_MILES_1970_3", "HVL_MILES_1980_3",
+                "HVL_MILES_1990_3", "HVL_MILES_2000_3", "HVL_MILES_2010_3", "NON_HVL_MILES_1940_3", "NON_HVL_MILES_1950_3", 
+                "NON_HVL_MILES_1960_3", "NON_HVL_MILES_1970_3", "NON_HVL_MILES_1980_3", "NON_HVL_MILES_1990_3", "NON_HVL_MILES_2000_3", 
+                "NON_HVL_MILES_2010_3")
+variable_names2 <- c("Incidts", "Adj.", "Adj sq.", "Miles add", "Consolid.", "MA", "MA t-1", "Crude 40s", "Crude 50s", "Crude 60s",
+                     "Crude 70s", "Crude 80s", "Crude 90s", "Crude 00s", "Crude 10s", "HVL 40s", "HVL 50s", "HVL 60s", "HVL 70s", 
+                     "HVL 80s", "HVL 90s", "HLV 00s", "HVL 10s", "Non-HVL 40s", "Non-HVL 50s", "Non-HVL 60s", "Non-HVL 70s", "Non-HVL 80s", 
+                     "Non-HVL 90s", "Non-HVL 00s", "Non-HVL 10s")
+```
+
+```{r}
+mean_model2 <- sapply(select(sample, variables2), mean, na.rm=TRUE)
+mean_model2 <- round(mean_model2, 2)
+names(mean_model2) <- variable_names2
+head(mean_model2)
+```
+
+```{r}
+sd_model2 <- sapply(select(sample, variables2), sd, na.rm=TRUE)
+sd_model2 <- round(sd_model2, 2)
+names(sd_model2) <- variable_names2
+head(sd_model2)
+```
+
+```{r}
+model2 <- sample %>%
+    select(variables2) %>%
+    as.matrix %>%
+    cor(use="pairwise.complete.obs") %>%
+    {round(., 2)}
+model2[upper.tri(model2)] <- ""
+colnames(model2) <- variable_names2
+rownames(model2) <- variable_names2
+head(model2)
+```
+
+```{r}
+model2 <- cbind("Mean" = mean_model2, "SD" = sd_model2, model2)
+head(model2)
+```
+
+```{r}
+model2_tex <- capture.output(kable(model2, "latex", booktabs=T) %>%
+    kable_styling(latex_options=c("scale_down")))
+```
+
+```{r}
+writeLines(model2_tex, "../drafts/summer_paper/illustrations/summary2.tex")
+```
+
+## 11.3 List out a few operators
+
+```{r}
+top_5 <- sample %>%
+    group_by(OPERATOR_ID) %>%
+    summarize(MILES = max(TOTAL_MILES)) %>%
+    arrange(desc(MILES)) %>%
+    top_n(5)
+print(top_5)
+```
+
+```{r}
+sample %>%
+    filter(OPERATOR_ID=="Magellan (Group)") %>%
+    group_by(YEAR) %>%
+    summarize(MILES = sum(MILES), INCIDENTS = sum(SIGNIFICANT_INCIDENTS))
+```
+
+```{r}
+options(repr.plot.width=8, repr.plot.height=8)
+```
+
+```{r}
+# For transforming
+# Square function
+sq <- function(x){x^2}
+isq <- function(x){sqrt(x)}
+
+shapes <- c(21, 22, 23, 24, 25)
+names(shapes) <- c("Enterprise Products Operating", "ONEOK (Group)", "Phillips 66 (Group)", "Magellan (Group)", "NuStar (Group)")
+
+plot <- sample %>%
+    filter(OPERATOR_ID %in% top_5$OPERATOR_ID) %>%
+    mutate(OPERATOR_ID = as.factor(OPERATOR_ID)) %>%
+    mutate(OPERATOR_ID = recode(.$OPERATOR_ID, "31618" = "Enterprise Products Operating")) %>%
+    ggplot(aes(x=YEAR, y=TOTAL_MILES, fill=OPERATOR_ID, size=SIGNIFICANT_INCIDENTS, shape=OPERATOR_ID)) +
+        geom_point(alpha = 0.6) +
+        geom_point(color='black', alpha=0.6) +
+        geom_line(size=0.5) +
+        scale_x_continuous(breaks = seq(2004, 2018, 3), lim=c(2004, 2018)) +
+        labs(title="Pipeline Network and Significant Incidents of Largest 5 Operators", 
+             x="Year", y="Miles of Pipeline", color="Operator", size="Number of Significant Incidents") +
+        scale_size("SIGNIFICANT_INCIDENTS", trans=scales::trans_new("sq", sq, isq)) +
+        scale_shape_manual(values=shapes)
+
+print(plot)
+```
+
+```{r}
+ggsave("../drafts/summer_paper/illustrations/large_operators.png")
+```
+
+sample %>%
+    filter(OPERATOR_ID %in% top_5$OPERATOR_ID) %>%
+    select(OPERATOR_ID, YEAR, COMMODITY, MILES, SIGNIFICANT_INCIDENTS) %>%
+    mutate(COMMODITY = recode(COMMODITY, crude = "Crude Oil", 
+                              hvl = "Propane, Butane, Ethylene etc.", 
+                              `non-hvl` = "Gasoline, Diesel, Jet Fuel etc.")) %>%
+    bind_rows(total) %>%
+    filter(OPERATOR_ID == "Sunoco (Group)") %>%
+    filter(COMMODITY == "Crude Oil")
+
+
+sample %>%
+    filter(OPERATOR_ID %in% top_5$OPERATOR_ID) %>%
+    select(OPERATOR_ID, YEAR, COMMODITY, MILES, SIGNIFICANT_INCIDENTS) %>%
+    mutate(COMMODITY = recode(COMMODITY, crude = "Crude Oil", 
+                              hvl = "Propane, Butane, Ethylene etc.", 
+                              `non-hvl` = "Gasoline, Diesel, Jet Fuel etc.")) %>%
+    filter(!complete.cases(.))
+
+
+sample %>%
+    {table(.$SIGNIFICANT_INCIDENTS)}
+
+
+sample %>%
+    group_by(OPERATOR_ID) %>%
+    filter(COMMODITY=='crude') %>%
+    summarize(n = max(SIGNIFICANT_INCIDENTS)) %>%
+    ungroup() %>%
+    {table(.$n)}
