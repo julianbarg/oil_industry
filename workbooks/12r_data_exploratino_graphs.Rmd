@@ -1,0 +1,203 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.1'
+      jupytext_version: 1.2.3
+  kernelspec:
+    display_name: R 3.6.1
+    language: R
+    name: ir361
+---
+
+# 12. Data exploration - model (graphs)
+
+```{r}
+sample_features_file <- "../preprocessed_data/sample_features_2019-09-12.feather"
+sample_crude_file <- "../preprocessed_data/sample_features_crude_2019-09-07.feather"
+sample_none_new_file <- "../preprocessed_data/sample_none_new_2019-09-02.feather"
+sample_consolidated_file <- "../preprocessed_data/sample_consolidated_2019-09-10.feather"
+```
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+# options(repr.plot.width=4, repr.plot.height=4, repr.plot.res=300)
+```
+
+```{r}
+today <- Sys.Date()
+```
+
+```{r}
+analysis_columns = c("YEAR", "COMMODITY", "OPERATOR_ID", "NAME", "inc_per_mile_3", "sign_inc_3", "MILES", "CHANGE", "sd_change_3", "sd_change_sq", "avg_1940", "avg_1950", "avg_1960", "avg_1970", 
+                     "avg_1980", "avg_1990", "avg_2000", "avg_2010")
+```
+
+## Read data
+
+```{r}
+sample <- feather::read_feather(sample_features_file)
+sample_crude <- feather::read_feather(sample_crude_file)
+sample_none_new <- feather::read_feather(sample_none_new_file)
+glimpse(sample)
+```
+
+```{r}
+sample_consolidated <- feather::read_feather(sample_consolidated_file)
+glimpse(sample_consolidated)
+```
+
+## 12.1 Filter for complete cases
+
+```{r}
+complete <- complete.cases(select(sample, analysis_columns))
+analysis_sample <- sample[complete, ]
+head(sample)
+```
+
+## 12.2 Check consistency pre-2010 and post-2010
+
+```{r}
+sample_consolidated %>%
+    filter(!is.na(MILES)) %>%
+    filter(COMMODITY == "crude") %>%
+    group_by(YEAR) %>%
+    summarize(total_miles = sum(MILES)) %>%
+    ggplot(aes(x=YEAR, y = total_miles)) +
+        geom_point()
+        
+```
+
+```{r}
+complete <- select(sample_consolidated, YEAR, OPERATOR_ID, MILES, SIGNIFICANT_INCIDENTS, COMMODITY)
+complete <- sample_consolidated[complete.cases(complete), ]
+complete_duplicate <- complete
+complete_duplicate$COMMODITY <- "Total"
+complete <- rbind(complete, complete_duplicate)
+
+plot1 <- complete %>%
+    group_by(YEAR, COMMODITY) %>%
+    summarize(Miles=sum(MILES)) %>%
+    mutate(COMMODITY = recode(COMMODITY, `crude` = "Crude Oil", `hvl` = "Butane, Propane, etc.", `non-hvl` = "Gasoline, Diesel etc.")) %>%
+    ggplot(aes(x=YEAR, y=Miles)) +
+        geom_point() +
+        facet_wrap(~COMMODITY, ncol=4) +
+    labs(x=element_blank())
+
+plot2 <- complete %>%
+    group_by(YEAR, COMMODITY) %>%
+    summarize(Incidents=sum(SIGNIFICANT_INCIDENTS)) %>%
+    mutate(COMMODITY = recode(COMMODITY, `crude` = "Crude Oil", `hvl` = "Butane, Propane, etc.", `non-hvl` = "Gasoline, Diesel etc.")) %>%
+    ggplot(aes(x=YEAR, y=Incidents)) +
+        geom_point() +
+        facet_wrap(~COMMODITY, ncol=4)
+
+plot_combined <- gridExtra::grid.arrange(plot1, plot2)
+print(plot_combined)
+```
+
+```{r}
+ggsave("../drafts/summer_paper/illustrations/variables.png", plot_combined)
+```
+
+```{r}
+sample_consolidated %>%
+    filter(!is.na(MILES)) %>%
+    group_by(COMMODITY, YEAR) %>%
+    summarize(total_miles = sum(MILES)) %>%
+    ggplot(aes(x=YEAR, y = total_miles)) +
+        geom_point() +
+        facet_wrap(.~COMMODITY)
+```
+
+## 12.3 Create FE-like variables
+
+```{r}
+analysis_sample <- analysis_sample %>%
+    group_by(YEAR, COMMODITY) %>%
+    arrange(desc(YEAR)) %>%
+    mutate(FE_INCIDENTS = (sign_inc_3/MILES) - (lead(sign_inc_3)/lead(MILES)), 
+           FE_SD = sd_change_3 - lead(sd_change_3)) %>%
+    ungroup()
+```
+
+```{r}
+analysis_sample %>%
+    # filter(abs(FE_SD) < 250) %>%
+    ggplot(aes(x=FE_SD, y=FE_INCIDENTS)) +
+        geom_jitter(size=0.5, alpha=0.3) +
+        geom_smooth(method='loess') +
+        coord_cartesian(ylim=c(-0.1, 0.1), xlim = c(-250, 250)) +
+        labs(title = "Change in pace and change in incident rate", 
+             x = "Change in pace (negative values signify return to stability)", 
+             y = "Change in incident rate (three-year average)")
+```
+
+## 12.3.1 What are the outliers
+
+```{r}
+analysis_sample %>%
+    filter(FE_INCIDENTS > 0.07) %>%
+    select(analysis_columns, FE_INCIDENTS, FE_SD)
+```
+
+## 13.4 Distribution of incidents in sample
+
+```{r}
+sample %>%
+    ggplot(aes(x=SIGNIFICANT_INCIDENTS)) +
+        geom_histogram(bins=50)
+```
+
+```{r}
+sample %>%
+    select(SIGNIFICANT_INCIDENTS, SIGN_INC_MILE) %>%
+    gather(SIGNIFICANT_INCIDENTS, SIGN_INC_MILE, key="variable", value="value") %>%
+    ggplot(aes(x=value)) +
+        geom_histogram() + 
+        facet_wrap(~ variable, scales="free") +
+        scale_y_log10() +
+        scale_x_log10() +
+        labs(title = " Histogram of number of significant incidents per observation in sample", x = "Number of incidents", y="Count")
+```
+
+```{r}
+sample %>%
+    select(SIGNIFICANT_INCIDENTS, SIGN_INC_MILE, COMMODITY) %>%
+    gather(SIGNIFICANT_INCIDENTS, SIGN_INC_MILE, key="variable", value="value") %>%
+    ggplot(aes(x=value)) +
+        geom_histogram() + 
+        facet_wrap(variable ~ COMMODITY, scales="free") +
+        scale_y_log10() +
+        scale_x_log10() +
+        labs(title = " Histogram of number of significant incidents per observation in sample", x = "Number of incidents", y="Count")
+```
+
+```{r}
+sample %>%
+    select(SIGNIFICANT_INCIDENTS, SIGN_INC_MILE, YEAR) %>%
+    gather(SIGNIFICANT_INCIDENTS, SIGN_INC_MILE, key="variable", value="value") %>%
+    ggplot(aes(x=value)) +
+        geom_histogram() + 
+        facet_wrap(variable ~ YEAR, scales="free") +
+        scale_y_log10() +
+        scale_x_log10() +
+        labs(title = " Histogram of number of significant incidents per observation in sample", x = "Number of incidents", y="Count")
+```
+
+## 12.5 Trend - incidents per year
+
+```{r}
+sample %>%
+    group_by(YEAR) %>%
+    summarize(INCIDENTS = sum(SIGNIFICANT_INCIDENTS)/ sum(MILES)) %>%
+    ggplot(aes(x=YEAR, y=INCIDENTS)) +
+        geom_point() +
+        geom_smooth(method='lm')
+```
