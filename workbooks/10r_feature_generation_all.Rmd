@@ -1,0 +1,528 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.1'
+      jupytext_version: 1.2.3
+  kernelspec:
+    display_name: R 3.6.1
+    language: R
+    name: ir361
+---
+
+# 10. Feature generation - all commodities combined (R)
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+good_look <- function(x, start=2, end=5){
+    return(x[, c(1:start, (ncol(x) - end):ncol(x))])
+}
+```
+
+```{r}
+sample_consolidated_file <- "../preprocessed_data/sample_consolidated_2019-09-10.feather"
+```
+
+## Read data
+
+```{r}
+sample <- feather::read_feather(sample_consolidated_file)
+glimpse(sample)
+```
+
+## Alternatively: filter large changes
+
+```{r}
+sample %>%
+    ggplot(aes(x=CHANGE)) +
+        geom_histogram()
+```
+
+```{r}
+nrow(sample)
+```
+
+```{r}
+# sample <- subset(sample, abs(CHANGE) < 250)
+```
+
+```{r}
+sample <- subset(sample, COMMODITY %in% c("crude", "hvl", "non-hvl"))
+table(sample$COMMODITY)
+```
+
+```{r}
+nrow(sample)
+```
+
+## Alternatively: combine all commodities
+
+```{r}
+m_as <- sample %>%
+    group_by(OPERATOR_ID, YEAR) %>%
+    summarize(M_A = TRUE %in% M_A)
+glimpse(m_as)
+```
+
+```{r}
+sample_selected <- select(sample, YEAR, COMMODITY, OPERATOR_ID, MILES, AGE_UNKNOWN_MILES, MILES_1940, MILES_1950, MILES_1960, 
+                 MILES_1970, MILES_1980, MILES_1990, MILES_2000, MILES_2010, INCIDENTS, SIGNIFICANT_INCIDENTS, AVG_AGE)
+
+sample_selected <- sample_selected %>%
+    gather(variable, value, -c(YEAR, OPERATOR_ID, COMMODITY)) %>%
+    mutate(COMMODITY = toupper(COMMODITY)) %>%
+    mutate(COMMODITY = recode(COMMODITY, `NON-HVL` = "NON_HVL")) %>%
+    unite(temp, COMMODITY, variable) %>%
+    spread(temp, value)
+
+glimpse(sample_selected)
+```
+
+```{r}
+potentially_empty_cols <- colnames(sample_selected)
+potentially_empty_cols <- potentially_empty_cols[!potentially_empty_cols %in% c('YEAR', 'OPERATOR_ID')]
+head(potentially_empty_cols)
+```
+
+```{r}
+sample_selected <- sample_selected %>%
+    mutate_at(potentially_empty_cols, ~replace_na(., 0))
+
+sample_selected$SIGNIFICANT_INCIDENTS <- (sample_selected$CRUDE_SIGNIFICANT_INCIDENTS + 
+                                          sample_selected$HVL_SIGNIFICANT_INCIDENTS + 
+                                          sample_selected$NON_HVL_SIGNIFICANT_INCIDENTS)
+
+glimpse(good_look(sample_selected))
+```
+
+## 10.1 Calculate change
+
+
+### 10.1.1 For construction only
+
+```{r}
+all_colls <- colnames(sample_selected)
+non_miles_cols <- c('YEAR', 'OPERATOR_ID', 'CRUDE_INCIDENTS', 'CRUDE_SIGNIFICANT_INCIDENTS',
+                    'HVL_INCIDENTS', 'HVL_SIGNIFICANT_INCIDENTS', 'NON_HVL_INCIDENTS', 
+                    'NON_HVL_SIGNIFICANT_INCIDENTS', 'SIGNIFICANT_INCIDENTS', 'CRUDE_MILES', 'CRUDE_AVG_AGE',
+                    'HVL_MILES', 'HVL_AVG_AGE', 'NON_HVL_MILES', 'NON_HVL_AVG_AGE')
+miles_cols <- all_colls[!all_colls %in% non_miles_cols]
+```
+
+```{r}
+return_positive <- function(x){
+    if (is.na(x)){
+        
+    } else if (x < 0){
+        x = 0
+    }
+    return(x)
+}
+return_positive(-2)
+```
+
+```{r}
+return_negative <- function(x){
+    if (is.na(x)){
+        
+    } else if (x > 0){
+        x = 0
+    }
+    return(x)
+}
+return_negative(20)
+```
+
+```{r}
+added_removed <- sample_selected %>%
+    gather(variable, value, one_of(miles_cols)) %>%
+    group_by(variable, OPERATOR_ID) %>% 
+    arrange(desc(YEAR)) %>%
+    mutate(added = sapply(value - lag(value), return_positive), 
+           removed = sapply(value - lag(value), return_negative)) %>%  
+    select(YEAR, OPERATOR_ID, variable, added, removed) %>%
+    group_by(OPERATOR_ID, YEAR) %>%
+    summarize(ADDED = sum(added),
+              REMOVED = sum(removed))
+```
+
+```{r}
+sample_selected <- left_join(sample_selected, added_removed, by=c('OPERATOR_ID', 'YEAR'))
+glimpse(good_look(sample_selected))
+```
+
+```{r}
+sample_selected <- sample_selected %>%
+    mutate(TOTAL_MILES = rowSums(select(., one_of(miles_cols))))
+```
+
+```{r}
+table(round(subset(sample_selected, TOTAL_MILES < 10, TOTAL_MILES), 2))
+```
+
+Change does not make sense, when organization has zero miles of pipeline network.
+
+```{r}
+sample_selected <- subset(sample_selected, TOTAL_MILES > 0)
+```
+
+```{r}
+sample_selected <- sample_selected %>%
+    group_by(OPERATOR_ID) %>%
+    mutate(ADDED_PERC = ADDED/(lag(TOTAL_MILES)
+                              ), 
+                              # + 0.01), 
+           REMOVED_PERC = REMOVED/(lag(TOTAL_MILES)
+                              )) 
+                              # + 0.01))
+tail(sample_selected)
+```
+
+```{r}
+table(round(sample_selected$ADDED_PERC, 2))
+```
+
+```{r}
+sample_selected %>%
+    filter(OPERATOR_ID == 'Sunoco (Group)') %>%
+    select(YEAR, OPERATOR_ID, ADDED, REMOVED, TOTAL_MILES, ADDED_PERC, REMOVED_PERC)
+```
+
+I seem to be losing 2018 for some reason. But since we are using the moving average of incidents, we cannot use that observation in our model anyways.
+
+```{r}
+sample_selected %>%
+    ggplot(aes(x=ADDED)) +
+        geom_histogram()
+```
+
+### 10.1.2 Overall
+
+```{r}
+sample_selected <- sample_selected%>%
+    group_by(OPERATOR_ID) %>%
+    arrange(desc(YEAR)) %>%
+    mutate(CHANGE_TOTAL = TOTAL_MILES - lag(TOTAL_MILES)) %>%
+    mutate(CHANGE_PERC = CHANGE_TOTAL / lag(TOTAL_MILES)) %>%
+    mutate(MEAN_CHANGE_3 = (CHANGE_PERC + lag(CHANGE_PERC) + lag(CHANGE_PERC)) / 3) %>%
+    mutate(CHANGE_SD = ((CHANGE_PERC - MEAN_CHANGE_3)^2 + (lag(CHANGE_PERC) - MEAN_CHANGE_3)^2 + (lag(CHANGE_PERC, 2) - MEAN_CHANGE_3)^2) / 2) %>%
+    mutate(CHANGE_SD_SQ = CHANGE_SD^2,
+           CHANGE_EXP = exp(CHANGE_SD))
+```
+
+```{r}
+    table(round(sample_selected$CHANGE_SD, 1))
+```
+
+```{r}
+sample_selected <- subset(sample_selected, CHANGE_SD < 10)
+```
+
+## 10.2 N-year averages
+
+
+### 10.2.1 Incidents
+
+```{r}
+sample_selected <- sample_selected %>%
+    group_by(OPERATOR_ID) %>%
+    arrange(desc(YEAR)) %>%
+    mutate(INC_3 = SIGNIFICANT_INCIDENTS + lead(SIGNIFICANT_INCIDENTS) + lead(SIGNIFICANT_INCIDENTS, 2), 
+           INC_4 = SIGNIFICANT_INCIDENTS + lead(SIGNIFICANT_INCIDENTS) + lead(SIGNIFICANT_INCIDENTS, 2) + lead(SIGNIFICANT_INCIDENTS, 3), 
+           INC_5 = SIGNIFICANT_INCIDENTS + lead(SIGNIFICANT_INCIDENTS) + lead(SIGNIFICANT_INCIDENTS, 2) + lead(SIGNIFICANT_INCIDENTS, 3) + lead(SIGNIFICANT_INCIDENTS, 4))
+glimpse(good_look(sample_selected))
+```
+
+```{r}
+sample_selected <- sample_selected %>%
+    group_by(OPERATOR_ID) %>%
+    arrange(desc(YEAR)) %>%
+    mutate(DISC_ADDED = 2/3 * ADDED_PERC + lag(ADDED_PERC) + 2/3 * lag(ADDED_PERC, 2) + 1/3 * lag(ADDED_PERC, 3),
+           DISC_ADDED_ALT = ADDED_PERC + 2/3 * lag(ADDED_PERC) + 1/3 * lag(ADDED_PERC, 2), 
+           DISC_ADDED_ALT2 = 1 * ADDED_PERC + lag(ADDED_PERC) + 2/3 * lag(ADDED_PERC, 2) + 1/3 * lag(ADDED_PERC, 3)) %>%
+    mutate(REMOVED_ADJ = sapply(abs(REMOVED_PERC) - ADDED_PERC, return_positive)) %>%
+    mutate(CONSOLIDATE = REMOVED_ADJ + lag(REMOVED_ADJ, 1) + lag(REMOVED_ADJ, 2))
+glimpse(good_look(sample_selected))
+```
+
+### 10.2.2 Miles & Age
+
+```{r}
+sample_selected <- sample_selected %>%
+    group_by(OPERATOR_ID) %>%
+    arrange(desc(YEAR)) %>%
+    mutate(CRUDE_MILES_3 = CRUDE_MILES + lead(CRUDE_MILES) + lead(CRUDE_MILES, 2), 
+           HVL_MILES_3 = HVL_MILES + lead(HVL_MILES) + lead(HVL_MILES, 2), 
+           NON_HVL_MILES_3 = NON_HVL_MILES + lead(NON_HVL_MILES) + lead(NON_HVL_MILES, 2))
+glimpse(good_look(sample_selected))
+```
+
+```{r}
+sample_selected$CRUDE_AVG_AGE <- ((sample_selected$CRUDE_MILES_1940 * (sample_selected$YEAR - 1945)) + 
+                                  (sample_selected$CRUDE_MILES_1950 * (sample_selected$YEAR - 1955)) +
+                                  (sample_selected$CRUDE_MILES_1960 * (sample_selected$YEAR - 1965)) +
+                                  (sample_selected$CRUDE_MILES_1970 * (sample_selected$YEAR - 1975)) +
+                                  (sample_selected$CRUDE_MILES_1980 * (sample_selected$YEAR - 1985)) +
+                                  (sample_selected$CRUDE_MILES_1990 * (sample_selected$YEAR - 1995)) +
+                                  (sample_selected$CRUDE_MILES_2000 * (sample_selected$YEAR - 2005)) +
+                                  (sample_selected$CRUDE_MILES_2010 * (sample_selected$YEAR - 2015))) / 
+                                  (sample_selected$CRUDE_MILES_1940 +
+                                   sample_selected$CRUDE_MILES_1950 +
+                                   sample_selected$CRUDE_MILES_1960 +
+                                   sample_selected$CRUDE_MILES_1970 +
+                                   sample_selected$CRUDE_MILES_1980 +
+                                   sample_selected$CRUDE_MILES_1990 +
+                                   sample_selected$CRUDE_MILES_2000 +
+                                   sample_selected$CRUDE_MILES_2010
+                                  # ) 
+                                  + 0.01)
+
+sample_selected$HVL_AVG_AGE <-   ((sample_selected$HVL_MILES_1940 * (sample_selected$YEAR - 1945)) + 
+                                  (sample_selected$HVL_MILES_1950 * (sample_selected$YEAR - 1955)) +
+                                  (sample_selected$HVL_MILES_1960 * (sample_selected$YEAR - 1965)) +
+                                  (sample_selected$HVL_MILES_1970 * (sample_selected$YEAR - 1975)) +
+                                  (sample_selected$HVL_MILES_1980 * (sample_selected$YEAR - 1985)) +
+                                  (sample_selected$HVL_MILES_1990 * (sample_selected$YEAR - 1995)) +
+                                  (sample_selected$HVL_MILES_2000 * (sample_selected$YEAR - 2005)) +
+                                  (sample_selected$HVL_MILES_2010 * (sample_selected$YEAR - 2015))) / 
+                                  (sample_selected$HVL_MILES_1940 +
+                                   sample_selected$HVL_MILES_1950 +
+                                   sample_selected$HVL_MILES_1960 +
+                                   sample_selected$HVL_MILES_1970 +
+                                   sample_selected$HVL_MILES_1980 +
+                                   sample_selected$HVL_MILES_1990 +
+                                   sample_selected$HVL_MILES_2000 +
+                                   sample_selected$HVL_MILES_2010
+                                  # ) 
+                                  + 0.01)
+
+sample_selected$NON_HVL_AVG_AGE <- ((sample_selected$NON_HVL_MILES_1940 * (sample_selected$YEAR - 1945)) + 
+                                    (sample_selected$NON_HVL_MILES_1950 * (sample_selected$YEAR - 1955)) +
+                                    (sample_selected$NON_HVL_MILES_1960 * (sample_selected$YEAR - 1965)) +
+                                    (sample_selected$NON_HVL_MILES_1970 * (sample_selected$YEAR - 1975)) +
+                                    (sample_selected$NON_HVL_MILES_1980 * (sample_selected$YEAR - 1985)) +
+                                    (sample_selected$NON_HVL_MILES_1990 * (sample_selected$YEAR - 1995)) +
+                                    (sample_selected$NON_HVL_MILES_2000 * (sample_selected$YEAR - 2005)) +
+                                    (sample_selected$NON_HVL_MILES_2010 * (sample_selected$YEAR - 2015))) / 
+                                    (sample_selected$NON_HVL_MILES_1940 +
+                                     sample_selected$NON_HVL_MILES_1950 +
+                                     sample_selected$NON_HVL_MILES_1960 +
+                                     sample_selected$NON_HVL_MILES_1970 +
+                                     sample_selected$NON_HVL_MILES_1980 +
+                                     sample_selected$NON_HVL_MILES_1990 +
+                                     sample_selected$NON_HVL_MILES_2000 +
+                                     sample_selected$NON_HVL_MILES_2010
+                                    # ) 
+                                    + 0.01)
+
+glimpse(sample_selected)
+```
+
+```{r}
+sample_selected <- sample_selected %>%
+    group_by(OPERATOR_ID) %>%
+    arrange(desc(YEAR)) %>%
+    mutate(CRUDE_AVG_AGE_3 =   (CRUDE_AVG_AGE * CRUDE_MILES + 
+                                lag(CRUDE_AVG_AGE, 1) * lag(CRUDE_MILES, 1) + 
+                                lag(CRUDE_AVG_AGE, 2) * lag(CRUDE_MILES, 2)) /
+                                (CRUDE_MILES + lag(CRUDE_MILES, 1) + lag(CRUDE_MILES, 2)       # ),
+                                                                                               + 0.01), 
+           HVL_AVG_AGE_3 =     (HVL_AVG_AGE * HVL_MILES + 
+                                lag(HVL_AVG_AGE, 1) * lag(HVL_MILES, 1) + 
+                                lag(HVL_AVG_AGE, 2) * lag(HVL_MILES, 2)) /
+                                (HVL_MILES + lag(HVL_MILES, 1) + lag(HVL_MILES, 2)             # ), 
+                                                                                               + 0.01), 
+           NON_HVL_AVG_AGE_3 = (NON_HVL_AVG_AGE * NON_HVL_MILES + 
+                                lag(NON_HVL_AVG_AGE, 1) * lag(NON_HVL_MILES, 1) + 
+                                lag(NON_HVL_AVG_AGE, 2) * lag(NON_HVL_MILES, 2)) /
+                                (NON_HVL_MILES + lag(NON_HVL_MILES, 1) + lag(NON_HVL_MILES, 2) # )) 
+                                                                                               + 0.01))
+glimpse(good_look(sample_selected))
+```
+
+```{r}
+table(round(sample_selected$NON_HVL_AVG_AGE_3))
+```
+
+### 10.2.3 Add control for no miles to "switch off" (absorb variance) from age
+
+```{r}
+sample_selected$NO_CRUDE <- sample_selected$CRUDE_MILES_3 == 0
+sample_selected$NO_HVL <- sample_selected$HVL_MILES_3 == 0
+sample_selected$NO_NON_HVL <- sample_selected$NON_HVL_MILES_3 == 0
+```
+
+# 10.3 M&As
+
+```{r}
+sample_selected <- left_join(sample_selected, m_as, by=c('OPERATOR_ID', 'YEAR'))
+glimpse(good_look(sample_selected))
+```
+
+```{r}
+sample_selected <- sample_selected %>%
+    group_by(OPERATOR_ID) %>%
+    arrange(desc(YEAR)) %>%
+    mutate(M_A_1 = lead(M_A), M_A_2 = lead(M_A, 2), M_A_3 = lead(M_A, 3)) %>%
+    mutate(M_A_past_3 = TRUE %in% c(M_A, M_A_1, M_A_2))
+glimpse(good_look(sample_selected))
+```
+
+## 10.4 Change SD
+
+```{r}
+sample_selected <- sample_selected %>%
+    group_by(OPERATOR_ID) %>%
+    arrange(desc(YEAR)) %>%
+    mutate(ADDED_1 = lead(ADDED_PERC, 1), 
+           ADDED_2 = lead(ADDED_PERC, 2))
+glimpse(good_look(sample_selected))
+```
+
+```{r}
+sample_selected <- sample_selected %>%
+    group_by(OPERATOR_ID) %>%
+    arrange(desc(YEAR)) %>%
+    mutate(ADDED_1 = lead(ADDED_PERC, 0), 
+           ADDED_2 = lag(ADDED_PERC, 1), 
+           ADDED_3 = lag(ADDED_PERC, 2)) %>%
+    mutate(MEAN_ADDED_3 = (ADDED_1 + ADDED_2 + ADDED_3) / 3) %>%
+    mutate(SD_ADDED_3 = sqrt(((ADDED_1 - MEAN_ADDED_3)^2 + (ADDED_2 - MEAN_ADDED_3)^2 + (ADDED_3 - MEAN_ADDED_3)^2) / 3)) %>%
+    mutate(SD_ADDED_3_EXP = exp(SD_ADDED_3))
+glimpse(good_look(sample_selected))
+```
+
+```{r}
+table(round(sample_selected$SD_ADDED_3, 2))
+```
+
+### 10.4.1 Filter large observations for now
+
+```{r}
+# sample_selected <- subset(sample_selected, SD_ADDED_3 < 5)
+```
+
+## 10.5 Fill NA (where appropriate) 
+
+```{r}
+sample_selected[is.na(sample_selected$CRUDE_AVG_AGE_3), ] %>%
+    select(starts_with("CRUDE")) %>%
+    head()
+```
+
+## 10.5 Interaction etc.
+
+```{r}
+sample_selected$SD_ADDED_3_EXP_SQ <- sample_selected$SD_ADDED_3_EXP^2
+sample_selected$SDxADDED <- sample_selected$SD_ADDED_3_EXP * sample_selected$DISC_ADDED
+
+sample_selected$CRUDExAGE <- sample_selected$CRUDE_MILES_3 * sample_selected$CRUDE_AVG_AGE_3
+sample_selected$HVLxAGE <- sample_selected$HVL_MILES_3 * sample_selected$HVL_AVG_AGE_3
+sample_selected$NON_HVLxAGE <- sample_selected$NON_HVL_MILES_3 * sample_selected$NON_HVL_AVG_AGE_3
+```
+
+```{r}
+glimpse(sample_selected)
+```
+
+## 10.6 With extreme detail
+
+```{r}
+sample_selected <- sample_selected %>%
+    group_by(OPERATOR_ID) %>%
+    arrange(desc(YEAR)) %>%
+    mutate(CRUDE_MILES_1940_3 = (     CRUDE_MILES_1940 + 
+                                 lead(CRUDE_MILES_1940, 1) + 
+                                 lead(CRUDE_MILES_1940, 2)), 
+           CRUDE_MILES_1950_3 = (     CRUDE_MILES_1950 + 
+                                 lead(CRUDE_MILES_1950, 1) + 
+                                 lead(CRUDE_MILES_1950, 2)), 
+           CRUDE_MILES_1960_3 = (     CRUDE_MILES_1960 + 
+                                 lead(CRUDE_MILES_1960, 1) + 
+                                 lead(CRUDE_MILES_1960, 2)), 
+           CRUDE_MILES_1970_3 = (     CRUDE_MILES_1970 + 
+                                 lead(CRUDE_MILES_1970, 1) + 
+                                 lead(CRUDE_MILES_1970, 2)), 
+           CRUDE_MILES_1980_3 = (     CRUDE_MILES_1980 + 
+                                 lead(CRUDE_MILES_1980, 1) + 
+                                 lead(CRUDE_MILES_1980, 2)), 
+           CRUDE_MILES_1990_3 = (     CRUDE_MILES_1990 + 
+                                 lead(CRUDE_MILES_1990, 1) + 
+                                 lead(CRUDE_MILES_1990, 2)), 
+           CRUDE_MILES_2000_3 = (     CRUDE_MILES_2000 + 
+                                 lead(CRUDE_MILES_2000, 1) + 
+                                 lead(CRUDE_MILES_2000, 2)), 
+           CRUDE_MILES_2010_3 = (     CRUDE_MILES_2010 + 
+                                 lead(CRUDE_MILES_2010, 1) + 
+                                 lead(CRUDE_MILES_2010, 2)), 
+           HVL_MILES_1940_3 = (       HVL_MILES_1940 + 
+                                 lead(HVL_MILES_1940, 1) + 
+                                 lead(HVL_MILES_1940, 2)), 
+           HVL_MILES_1950_3 = (       HVL_MILES_1950 + 
+                                 lead(HVL_MILES_1950, 1) + 
+                                 lead(HVL_MILES_1950, 2)), 
+           HVL_MILES_1960_3 = (       HVL_MILES_1960 + 
+                                 lead(HVL_MILES_1960, 1) + 
+                                 lead(HVL_MILES_1960, 2)), 
+           HVL_MILES_1970_3 = (       HVL_MILES_1970 + 
+                                 lead(HVL_MILES_1970, 1) + 
+                                 lead(HVL_MILES_1970, 2)), 
+           HVL_MILES_1980_3 = (       HVL_MILES_1980 + 
+                                 lead(HVL_MILES_1980, 1) + 
+                                 lead(HVL_MILES_1980, 2)), 
+           HVL_MILES_1990_3 = (       HVL_MILES_1990 + 
+                                 lead(HVL_MILES_1990, 1) + 
+                                 lead(HVL_MILES_1990, 2)), 
+           HVL_MILES_2000_3 = (       HVL_MILES_2000 + 
+                                 lead(HVL_MILES_2000, 1) + 
+                                 lead(HVL_MILES_2000, 2)), 
+           HVL_MILES_2010_3 = (       HVL_MILES_2010 + 
+                                 lead(HVL_MILES_2010, 1) + 
+                                 lead(HVL_MILES_2010, 2)), 
+           NON_HVL_MILES_1940_3 = (   NON_HVL_MILES_1940 + 
+                                 lead(NON_HVL_MILES_1940, 1) + 
+                                 lead(NON_HVL_MILES_1940, 2)), 
+           NON_HVL_MILES_1950_3 = (   NON_HVL_MILES_1950 + 
+                                 lead(NON_HVL_MILES_1950, 1) + 
+                                 lead(NON_HVL_MILES_1950, 2)), 
+           NON_HVL_MILES_1960_3 = (   NON_HVL_MILES_1960 + 
+                                 lead(NON_HVL_MILES_1960, 1) + 
+                                 lead(NON_HVL_MILES_1960, 2)), 
+           NON_HVL_MILES_1970_3 = (   NON_HVL_MILES_1970 + 
+                                 lead(NON_HVL_MILES_1970, 1) + 
+                                 lead(NON_HVL_MILES_1970, 2)), 
+           NON_HVL_MILES_1980_3 = (   NON_HVL_MILES_1980 + 
+                                 lead(NON_HVL_MILES_1980, 1) + 
+                                 lead(NON_HVL_MILES_1980, 2)), 
+           NON_HVL_MILES_1990_3 = (   NON_HVL_MILES_1990 + 
+                                 lead(NON_HVL_MILES_1990, 1) + 
+                                 lead(NON_HVL_MILES_1990, 2)), 
+           NON_HVL_MILES_2000_3 = (   NON_HVL_MILES_2000 + 
+                                 lead(NON_HVL_MILES_2000, 1) + 
+                                 lead(NON_HVL_MILES_2000, 2)), 
+           NON_HVL_MILES_2010_3 = (   NON_HVL_MILES_2010 + 
+                                 lead(NON_HVL_MILES_2010, 1) + 
+                                 lead(NON_HVL_MILES_2010, 2)))
+
+glimpse(good_look(sample_selected))
+```
+
+## 10.7 Data types
+
+```{r}
+sample_selected$OPERATOR_ID <- as.factor(sample_selected$OPERATOR_ID)
+```
+
+## 10.8 Save
+
+```{r}
+# testit::assert(nrow(subset(sample, YEAR == 2008)) > 0)
+feather::write_feather(sample_selected, paste0("../preprocessed_data/sample_combined_", Sys.Date(), ".feather"))
+haven::write_dta(sample_selected, paste0("../stata_data/sample_combined_", Sys.Date(), ".dta"))
+```
