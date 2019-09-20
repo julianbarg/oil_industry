@@ -79,16 +79,24 @@ ggmap(toner_lite)
 ## Save
 
 ```{r}
-save(roadmap,  file="../incidents_dashboard/data/roadmap.RData")
-save(roadmap_large, file="../incidents_dashboard/data/roadmap_large.RData")
-save(satellite, file="../incidents_dashboard/data/satellite.RData")
-save(satellite_large, file="../incidents_dashboard/data/satellite_large.RData")
-save(hybrid, file="../incidents_dashboard/data/hybrid.RData")
-save(hybrid_large, file="../incidents_dashboard/data/hybrid_large.RData")
-save(terrain, file="../incidents_dashboard/data/terrain.RData")
-save(terrain_large, file="../incidents_dashboard/data/terrain_large.RData")
-save(terrain_background, file="../incidents_dashboard/data/terrain_background.RData")
-save(terrain_background_large, file="../incidents_dashboard/data/terrain_background_large.RData")
-save(toner_lite, file="../incidents_dashboard/data/toner_lite.RData")
-save(toner_lite_large, file="../incidents_dashboard/data/toner_lite_large.RData")
+maps <- list(roadmap = roadmap, 
+             roadmap_large = roadmap_large, 
+             satellite = satellite, 
+             satellite_large = satellite_large, 
+             hybrid = hybrid, 
+             hybrid_large = hybrid_large, 
+             terrain = terrain, 
+             terrain_large = terrain_large, 
+             terrain_background = terrain_background, 
+             terrain_background_large = terrain_background_large, 
+             toner_lite = toner_lite, 
+             toner_lite_large = toner_lite_large)
+```
+
+```{r}
+head(maps, 3)
+```
+
+```{r}
+save(maps,  file="../incident_dashboard/data/maps.RData")
 ```
