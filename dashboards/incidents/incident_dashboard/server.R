@@ -13,7 +13,8 @@ library(ggmap)
 library(feather)
 
 # Load data
-load("data/terrain_background.RData")
+load("data/maps.RData")
+
 raw_df <- read_feather("data/dataset_2019-09-20.feather")
 
 # Define server logic required to draw a histogram
@@ -21,6 +22,7 @@ shinyServer(function(input, output) {
     incidents <- reactive({
         req(input$severity)
         req(input$years)
+        req(input$offshore)
         filtered_df <- raw_df
         
         # Severity
@@ -33,12 +35,22 @@ shinyServer(function(input, output) {
         # Time
         filtered_df <- subset(filtered_df, Year >= input$years[1] & Year <= input$years[2])
         
+        # On/Offshore
+        if (input$offshore == "Onshore only"){
+            filtered_df <- subset(filtered_df, Offshore == "ONSHORE")
+        } else if (input$offshore == "Offshore only"){
+            filtered_df <- subset(filtered_df, Offshore == "OFFSHORE")
+        }
+        
         filtered_df
     })
 
+    map_choice <- reactive({
+        input$map_type
+    })
 
     output$incidentMap <- renderPlot({
-        map <- ggmap(terrain_background, base_layer = ggplot(incidents(), aes(Long, Lat))) +
+        map <- ggmap(maps[[input$map_type]], base_layer = ggplot(incidents(), aes(Long, Lat))) +
             geom_point()
 
         map

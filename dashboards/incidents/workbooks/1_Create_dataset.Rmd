@@ -89,7 +89,7 @@ create_dataset <- function(raw_data, variables, variable_names, operators,
 
 ```{r}
 variables <- c("OPERATOR_ID", "NAME", "LOCAL_DATETIME", "LOCATION_LATITUDE", 
-               "LOCATION_LONGITUDE", "SIGNIFICANT", "SERIOUS")
+               "LOCATION_LONGITUDE", "SIGNIFICANT", "SERIOUS", "ON_OFF_SHORE")
 
 variable_names <- c("ID" = "OPERATOR_ID", 
                     "Name" = "NAME", 
@@ -97,7 +97,8 @@ variable_names <- c("ID" = "OPERATOR_ID",
                     "Lat" = "LOCATION_LATITUDE", 
                     "Long" = "LOCATION_LONGITUDE", 
                     "Significant" = "SIGNIFICANT", 
-                    "Serious" = "SERIOUS")
+                    "Serious" = "SERIOUS", 
+                    "Offshore" = "ON_OFF_SHORE")
 
 undesired_company_endings <- c(" L. P.| L.L.C.|, LLC|, L.P.| L.P.|, LP|LP|LLC|, LIMITED PARTNERSHIP|, A DIVISION OF EXXON MOBIL CORPORATION")
 ```
@@ -108,5 +109,5 @@ head(dataset)
 ```
 
 ```{r}
-write_feather(dataset, paste0("../data/dataset_", Sys.Date(), ".feather"))
+write_feather(dataset, paste0("../incident_dashboard/data/dataset_", Sys.Date(), ".feather"))
 ```

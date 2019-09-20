@@ -10,13 +10,14 @@
 library(shiny)
 library(tidyverse)
 
+load("data/maps.RData")
+
 # Define UI for application that draws a histogram
 shinyUI(fluidPage(
 
     # Application title
     titlePanel("Pipeline Incidents in the US (2010-2018)"),
 
-    # Sidebar with a slider input for number of bins
     sidebarLayout(
         sidebarPanel(
             tabsetPanel(
@@ -25,6 +26,10 @@ shinyUI(fluidPage(
                                       label="Severity:",
                                       choices=c("All", "Significant", "Serious"),
                                       selected="Significant"), 
+                         radioButtons(inputId="offshore", 
+                                      label="On/Offshore:",
+                                      choices=c("All", "Onshore only", "Offshore only"), 
+                                      selected="Onshore only"),
                          sliderInput(inputId="years", 
                                      label="Years:", 
                                      min=2010, 
@@ -32,7 +37,12 @@ shinyUI(fluidPage(
                                      value=c(2010, 2018), 
                                      step=1,
                                      ticks=FALSE)
-                    )
+                    ), 
+                tabPanel("Map type", 
+                         radioButtons(inputId="map_type",
+                                      label="Choose map type:",
+                                      choices = names(maps), 
+                                      selected="terrain_background"))
             )            
 
         ),
