@@ -25,8 +25,8 @@ year <- lubridate::year
 ```
 
 ```{r}
-raw_data_file <- "../../data/incidents_2019-08-11.feather"
-largest_observations_file = '../../preprocessed_data/largest_companies_2019-09-08.feather'
+raw_data_file <- "../../../data/incidents_2019-08-11.feather"
+largest_observations_file = '../../../preprocessed_data/largest_companies_2019-09-08.feather'
 ```
 
 ## Read Data
@@ -59,7 +59,9 @@ get_latest_name <- function(dataset, id_col, name_col, time_col){
 ```
 
 ```{r}
-create_dataset <- function(raw_data, variables, variable_names, operators, undesired_company_endings, name_col = "Name", time_col = "Time"){
+create_dataset <- function(raw_data, variables, variable_names, operators, 
+                           undesired_company_endings, name_col = "Name", time_col = "Time", 
+                           recode_bool = c("Significant", "Serious")){
     dataset <- select(raw_data, variables)
     dataset <- rename(dataset, !!! variable_names)
     
@@ -69,10 +71,15 @@ create_dataset <- function(raw_data, variables, variable_names, operators, undes
     # Clean (unify) company names
     dataset <- get_latest_name(dataset, ID, Name, Time)
     
-    #Various cleaning
+    # Various cleaning
     dataset$Year = year(dataset[[time_col]])
     dataset[[name_col]] = str_remove_all(dataset[[name_col]], undesired_company_endings)
     dataset[[name_col]] = str_to_title(dataset[[name_col]])
+    
+    # Recode from yes/no to boolean
+    for (column in recode_bool){
+        dataset[[column]] <- dataset[[column]] == "YES"
+    }
     
     return(dataset)
 }
@@ -81,13 +88,16 @@ create_dataset <- function(raw_data, variables, variable_names, operators, undes
 ## Run
 
 ```{r}
-variables <- c("OPERATOR_ID", "NAME", "LOCAL_DATETIME", "LOCATION_LATITUDE", "LOCATION_LONGITUDE")
+variables <- c("OPERATOR_ID", "NAME", "LOCAL_DATETIME", "LOCATION_LATITUDE", 
+               "LOCATION_LONGITUDE", "SIGNIFICANT", "SERIOUS")
 
 variable_names <- c("ID" = "OPERATOR_ID", 
                     "Name" = "NAME", 
                     "Time" = "LOCAL_DATETIME", 
                     "Lat" = "LOCATION_LATITUDE", 
-                    "Long" = "LOCATION_LONGITUDE")
+                    "Long" = "LOCATION_LONGITUDE", 
+                    "Significant" = "SIGNIFICANT", 
+                    "Serious" = "SERIOUS")
 
 undesired_company_endings <- c(" L. P.| L.L.C.|, LLC|, L.P.| L.P.|, LP|LP|LLC|, LIMITED PARTNERSHIP|, A DIVISION OF EXXON MOBIL CORPORATION")
 ```
