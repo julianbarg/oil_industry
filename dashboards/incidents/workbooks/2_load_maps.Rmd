@@ -1,0 +1,94 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.1'
+      jupytext_version: 1.2.3
+  kernelspec:
+    display_name: R 3.6.1
+    language: R
+    name: ir361
+---
+
+# 2. Load maps
+
+
+## Setup
+
+```{r}
+library(ggmap)
+```
+
+```{r}
+options(repr.plot.width=5, repr.plot.height=5)
+```
+
+## Load files
+
+```{r}
+key_file <- "../../../maps_key.txt"
+key <- readChar(key_file, file.info(key_file)$size)
+register_google(key = key)
+```
+
+## Download maps
+
+```{r}
+roadmap <- get_map("lebanon, kansas", zoom=5, source="google", maptype="roadmap")
+ggmap(roadmap)
+```
+
+```{r}
+roadmap_large <- suppressMessages(get_map("lebanon, kansas", zoom=4, source="google", maptype="roadmap"))
+ggmap(roadmap_large)
+```
+
+```{r}
+satellite <- suppressMessages(get_map("lebanon, kansas", zoom=5, source="google", maptype="satellite"))
+satellite_large = suppressMessages(get_map("lebanon, kansas", zoom=4, source="google", maptype="satellite"))
+ggmap(satellite)
+```
+
+```{r}
+hybrid <- suppressMessages(get_map("lebanon, kansas", zoom=5, source="google", maptype="hybrid"))
+hybrid_large <- suppressMessages(get_map("lebanon, kansas", zoom=4, source="google", maptype="hybrid"))
+ggmap(hybrid)
+```
+
+```{r}
+terrain <- suppressMessages(get_map("lebanon, kansas", zoom=5, source="stamen", maptype="terrain"))
+terrain_large <- suppressMessages(get_map("lebanon, kansas", zoom=4, source="stamen", maptype="terrain"))
+ggmap(terrain)
+```
+
+```{r}
+terrain_background <- suppressMessages(get_map("lebanon, kansas", zoom=5, source="stamen", maptype="terrain-background"))
+terrain_background_large <- suppressMessages(get_map("lebanon, kansas", zoom=4, source="stamen", maptype="terrain-background"))
+ggmap(terrain_background)
+```
+
+```{r}
+toner_lite <- suppressMessages(get_map("lebanon, kansas", zoom=5, source="stamen", maptype="toner-lite"))
+toner_lite_large <- suppressMessages(get_map("lebanon, kansas", zoom=4, source="stamen", maptype="toner-lite"))
+ggmap(toner_lite)
+```
+
+## Save
+
+```{r}
+save(roadmap,  file="../incidents_dashboard/data/roadmap.RData")
+save(roadmap_large, file="../incidents_dashboard/data/roadmap_large.RData")
+save(satellite, file="../incidents_dashboard/data/satellite.RData")
+save(satellite_large, file="../incidents_dashboard/data/satellite_large.RData")
+save(hybrid, file="../incidents_dashboard/data/hybrid.RData")
+save(hybrid_large, file="../incidents_dashboard/data/hybrid_large.RData")
+save(terrain, file="../incidents_dashboard/data/terrain.RData")
+save(terrain_large, file="../incidents_dashboard/data/terrain_large.RData")
+save(terrain_background, file="../incidents_dashboard/data/terrain_background.RData")
+save(terrain_background_large, file="../incidents_dashboard/data/terrain_background_large.RData")
+save(toner_lite, file="../incidents_dashboard/data/toner_lite.RData")
+save(toner_lite_large, file="../incidents_dashboard/data/toner_lite_large.RData")
+```
