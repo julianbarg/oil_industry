@@ -26,7 +26,8 @@ year <- lubridate::year
 
 ```{r}
 raw_data_file <- "../../../data/incidents_2019-08-11.feather"
-largest_observations_file = '../../../preprocessed_data/largest_companies_2019-09-08.feather'
+largest_observations_file = "../../../preprocessed_data/largest_companies_2019-09-08.feather"
+company_groups_file <- "../../../preprocessed_data/company_groups_2019-08-18.feather"
 ```
 
 ## Read Data
@@ -39,6 +40,11 @@ head(largest_observations)
 ```{r}
 raw_data <- read_feather(raw_data_file)
 head(raw_data[, 1:20])
+```
+
+```{r}
+company_groups <- read_feather(company_groups_file)
+glimpse(company_groups)
 ```
 
 ## Define functions
@@ -59,26 +65,34 @@ get_latest_name <- function(dataset, id_col, name_col, time_col){
 ```
 
 ```{r}
-create_dataset <- function(raw_data, variables, variable_names, operators, 
-                           undesired_company_endings, name_col = "Name", time_col = "Time", 
-                           recode_bool = c("Significant", "Serious")){
+create_dataset <- function(raw_data, variables, variable_names, operators, undesired_company_endings, commodity_names, causes,
+# Make sure you provide the right named vector that ensures that the respective column is renamed to the column expcted by the function for name, time, etc.
+                           name_col = "Name", time_col = "Time", commodity_col = "Commodity", cause_col = "Cause", na_values = c("nan", "UNKNOWN")){
     dataset <- select(raw_data, variables)
     dataset <- rename(dataset, !!! variable_names)
     
-    # For option to filter by sample
+    # For option to filter by sample.
     dataset$in_sample <- dataset$ID %in% operators
     
-    # Clean (unify) company names
+    # Clean (unify) company names.
     dataset <- get_latest_name(dataset, ID, Name, Time)
     
-    # Various cleaning
+    # Various cleaning.
     dataset$Year = year(dataset[[time_col]])
     dataset[[name_col]] = str_remove_all(dataset[[name_col]], undesired_company_endings)
     dataset[[name_col]] = str_to_title(dataset[[name_col]])
+    dataset[[commodity_col]] = recode(dataset[[commodity_col]], !!! commodity_names)
+    dataset[[cause_col]] = recode(dataset[[cause_col]], !!! causes)
+    # Weird method to replace values with NA cause naniar functions stopped working.
+    for (i in colnames(dataset)){
+        dataset[dataset[[i]] %in% na_values, i] <- NA
+    }
     
-    # Recode from yes/no to boolean
-    for (column in recode_bool){
-        dataset[[column]] <- dataset[[column]] == "YES"
+    # Recode from yes/no to boolean.
+    for (column in colnames(dataset)){
+        if (all(unique(dataset[[column]]) %in% c("YES", "NO", NA))){
+            dataset[[column]] <- dataset[[column]] == "YES"
+        }
     }
     
     return(dataset)
@@ -88,8 +102,10 @@ create_dataset <- function(raw_data, variables, variable_names, operators,
 ## Run
 
 ```{r}
-variables <- c("OPERATOR_ID", "NAME", "LOCAL_DATETIME", "LOCATION_LATITUDE", 
-               "LOCATION_LONGITUDE", "SIGNIFICANT", "SERIOUS", "ON_OFF_SHORE")
+variables <- c("OPERATOR_ID", "NAME", "LOCAL_DATETIME", "LOCATION_LATITUDE", "LOCATION_LONGITUDE", "SIGNIFICANT", "SERIOUS", "ON_OFF_SHORE",
+               "IGNITE_IND", "EXPLODE_IND", "NUM_PUB_EVACUATED", "INJURE", "UNINTENTIONAL_RELEASE_BBLS", "COMMODITY_RELEASED_TYPE", 
+               "PIPE_DIAMETER", "PIPE_WALL_THICKNESS", "OCEAN_SEAWATER_IND", "GROUNDWATER_CONTAM_IND", "DRINKING_WATER_CONTAM_IND",
+               "HIGH_POP_IND", "USA_DRINKING_IND", "USA_ECOLOGICAL_IND", "TOTAL_COST", "NUM_EMPLOYEES_FAILED", "CAUSE")
 
 variable_names <- c("ID" = "OPERATOR_ID", 
                     "Name" = "NAME", 
@@ -98,16 +114,59 @@ variable_names <- c("ID" = "OPERATOR_ID",
                     "Long" = "LOCATION_LONGITUDE", 
                     "Significant" = "SIGNIFICANT", 
                     "Serious" = "SERIOUS", 
-                    "Offshore" = "ON_OFF_SHORE")
+                    "Offshore" = "ON_OFF_SHORE",
+                    "Fire" = "IGNITE_IND", 
+                    "Explosion" = "EXPLODE_IND", 
+                    "Evacuated" = "NUM_PUB_EVACUATED", 
+                    "Injuries" = "INJURE", 
+                    "Barrels released" = "UNINTENTIONAL_RELEASE_BBLS",
+                    "Commodity" = "COMMODITY_RELEASED_TYPE", 
+                    "Pipe diameter" = "PIPE_DIAMETER", 
+                    "Pipe thickness" = "PIPE_WALL_THICKNESS",
+                    "Ocean contamination" = "OCEAN_SEAWATER_IND",
+                    "Groundwater contamination" = "GROUNDWATER_CONTAM_IND", 
+                    "Drinking water contamination" = "DRINKING_WATER_CONTAM_IND", 
+                    "High population area" = "HIGH_POP_IND", 
+                    "Water protection area" = "USA_DRINKING_IND", 
+                    "Ecological site" = "USA_ECOLOGICAL_IND", 
+                    "Cost" = "TOTAL_COST", 
+                    "Alcohol test failures" = "NUM_EMPLOYEES_FAILED", 
+                    "Cause" = "CAUSE")
+
+commodity_names <- c("BIOFUEL / ALTERNATIVE FUEL(INCLUDING ETHANOL BLENDS)" = "Biofuel", 
+                     "CO2 (CARBON DIOXIDE)" = "CO2",
+                     "CRUDE OIL" = "Crude", 
+                     "HVL OR OTHER FLAMMABLE OR TOXIC FLUID WHICH IS A GAS AT AMBIENT CONDITIONS" = "Propane, Butane, etc.", 
+                     "REFINED AND/OR PETROLEUM PRODUCT (NON-HVL) WHICH IS A LIQUID AT AMBIENT CONDITIONS" = "Gasoline, Diesel, etc.")
+
+causes <- c("CORROSION FAILURE" = "Corrosion", 
+            "EQUIPMENT FAILURE" = "Equipment", 
+            "EXCAVATION DAMAGE" = "Excavation", 
+            "INCORRECT OPERATION" = "Incorrect_operation", 
+            "MATERIAL FAILURE OF PIPE OR WELD" = "Pipe_or_weld", 
+            "NATURAL FORCE DAMAGE" = "Natural_force", 
+            "OTHER INCIDENT CAUSE" = "Other_incident", 
+            "OTHER OUTSIDE FORCE DAMAGE" = "Other_force")
 
 undesired_company_endings <- c(" L. P.| L.L.C.|, LLC|, L.P.| L.P.|, LP|LP|LLC|, LIMITED PARTNERSHIP|, A DIVISION OF EXXON MOBIL CORPORATION")
 ```
 
 ```{r}
-dataset <- create_dataset(raw_data, variables, variable_names, largest_observations$OPERATOR_ID, undesired_company_endings)
+dataset <- create_dataset(raw_data=raw_data, variables=variables, variable_names=variable_names, 
+                          operators=largest_observations$OPERATOR_ID, undesired_company_endings=undesired_company_endings, 
+                          commodity_names=commodity_names, causes=causes)
 head(dataset)
 ```
 
 ```{r}
 write_feather(dataset, paste0("../incident_dashboard/data/dataset_", Sys.Date(), ".feather"))
+write_feather(company_groups, "../incident_dashboard/data/company_groups.feather")
+```
+
+```{r}
+sum(dataset$in_sample)
+```
+
+```{r}
+nrow(dataset)
 ```
