@@ -15,7 +15,7 @@ library(feather)
 # Load data
 load("data/maps.RData")
 
-raw_df <- read_feather("data/dataset_2019-09-21.feather")
+raw_df <- read_feather("data/dataset_2019-09-25.feather")
 company_groups <- read_feather("data/company_groups.feather")
 
 # Define server logic required to draw a histogram
@@ -107,15 +107,31 @@ shinyServer(function(input, output) {
 
     output$incidentMap <- renderPlot({
         req(input$shape)
-        map <- ggmap(maps[[input$map_type]], base_layer = ggplot(incidents(), aes(Long, Lat))) +
-            geom_point(color=input$color,
-                       shape = shape_choice(),
-                       # color="brown4",
-                       size = input$size, 
-                       alpha = input$transparency,
-                       position = position_jitter(width = input$jitter, height = input$jitter)) + 
+        map <- ggmap(maps[[input$map_type]], base_layer = ggplot(incidents(), aes(Long, Lat)))            + 
             labs(x=element_blank(), 
-                 y=element_blank())
+                 y=element_blank()) +
+            theme(text = element_text(size=20))
+        
+        if (input$groupcolor == FALSE){
+            map <- map + 
+                geom_point(color=input$color,
+                           shape = shape_choice(),
+                           # color="brown4",
+                           size = input$size, 
+                           alpha = input$transparency,
+                           position = position_jitter(width = input$jitter, height = input$jitter)) 
+        } else {
+            map <- map + 
+                geom_point(aes(color=Group),
+                           shape = shape_choice(),
+                           # color="brown4",
+                           size = input$size, 
+                           alpha = input$transparency,
+                           position = position_jitter(width = input$jitter, height = input$jitter)) 
+        }
+
+            
+
 
         if (input$rugplot == TRUE){
             map <- map +

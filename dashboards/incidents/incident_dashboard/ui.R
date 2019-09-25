@@ -109,7 +109,9 @@ shinyUI(fluidPage(
                                             label="Color:",
                                             choices=colors(),
                                             selected="black",
-                                            multiple=FALSE)
+                                            multiple=FALSE), 
+                             checkboxInput(inputId="groupcolor",
+                                           label="Color group in different color?")
                         ),
                     
                     tabPanel("Map type", 
