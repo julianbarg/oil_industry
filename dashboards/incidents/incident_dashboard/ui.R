@@ -91,7 +91,7 @@ shinyUI(fluidPage(
                                          value = 2),
                              sliderInput("transparency",
                                          "Transparency:",
-                                         min = 0.4,
+                                         min = 0.1,
                                          max = 1,
                                          step = 0.1,
                                          ticks = FALSE,
