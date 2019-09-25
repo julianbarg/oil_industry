@@ -11,7 +11,7 @@ library(shiny)
 library(feather)
 
 load("data/maps.RData")
-raw_df <- read_feather("data/dataset_2019-09-21.feather")
+raw_df <- read_feather("data/dataset_2019-09-25.feather")
 company_groups <- read_feather("data/company_groups.feather")
 
 # Define UI for application that draws a histogram
