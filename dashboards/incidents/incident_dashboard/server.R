@@ -53,7 +53,7 @@ shinyServer(function(input, output) {
         }
         
         #Select organizations
-        if (length(input$organizations > 0)){
+        if (length(input$organizations) > 0){
             filtered_df <- subset(filtered_df, Name %in% input$organizations)
         } else if (length(input$group) > 0){
             selected_organizations <- subset(company_groups, name %in% input$group)$members
