@@ -22,6 +22,11 @@ shinyServer(function(input, output) {
         
         pipelines <- dataset
         
+        # Filtering        
+        if (input$year == TRUE){
+            pipelines <- subset(pipelines, Year == 2018)
+        }
+        
         if (input$sample == TRUE){
             pipelines <- subset(pipelines, Sample == TRUE)
         }
@@ -34,6 +39,7 @@ shinyServer(function(input, output) {
             pipelines <- subset(pipelines, Commodity %in% c("Crude", "Propane, Butane, etc.", "Gasoline, Diesel, etc."))
         }
         
+        # Groupings
         if (input$commodity_wrap == TRUE){
             pipelines <- pipelines %>%
                 group_by(Commodity)

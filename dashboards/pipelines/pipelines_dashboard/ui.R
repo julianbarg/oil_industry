@@ -42,7 +42,9 @@ shinyUI(fluidPage(
                      checkboxInput("groups", 
                                    "Show company groups vs. non groups"),
                      checkboxInput("largest",
-                                   "Show only largest five organizations")
+                                   "Show only largest five organizations"),
+                     checkboxInput("year", 
+                                   "Select only year 2018")
                     )
                 #     ),
                 # tabPanel(
