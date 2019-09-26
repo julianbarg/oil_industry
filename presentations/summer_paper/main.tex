@@ -2,18 +2,23 @@
 \usepackage{pgfpages}
 \usepackage{url}
 \usepackage[round]{natbib}
+\usepackage{makecell}
+\usepackage{booktabs}
+\usepackage{pifont}
 
 \setbeameroption{show notes on second screen}
 \setbeamertemplate{caption}[numbered]
 
+\urldef{\repository}\url{https://github.com/julianbarg/oil_industry/}
+\urldef{\pipelinesDashboard}\url{https://julianbarg.shinyapps.io/pipelines_dashboard/}
 \urldef{\incidentDashboard}\url{https://julianbarg.shinyapps.io/incident_dashboard/}
+\urldef{\incidentDefinition}\url{https://www.phmsa.dot.gov/data-and-statistics/pipeline/pipeline-incident-20-year-trends}
 
 \title{Valuing Peace and Quiet: the Effect of Expansion Mode on Learning toward Subordinate Goals}
 \author{Julian Barg}
 \institute{Ivey Business School}
 \date{Sept 27, 2019}
 \logo{\includegraphics[scale=0.08]{resources/ivey_logo.jpg}}
-
 \begin{document}
 	
 \frame{\titlepage}
@@ -21,6 +26,11 @@
 \begin{frame}
 	\frametitle{Outline}
 	\tableofcontents
+\end{frame}
+
+\begin{frame}
+	\repository
+	\note{Includes data collection, variable transformation, stata code for results, and even this presentation, and the dashboards.}
 \end{frame}
 
 \begin{frame}
@@ -43,15 +53,21 @@
 
 \input{sections/cases}
 
-\input{sections/learning}
-
 \begin{frame}
 	\frametitle{Research Question}
 	How does organizational learning and forgetting play out in the context of strategic adjustment and hierarchies?
 	\note{Let me show you the phenomenon I have been working on, what I believe is going on, and how that generalizes.}
 \end{frame}
 
-\input{sections/data}
+\input{sections/learning}
+
+\input{sections/hypothesis_development}
+
+\input{sections/methods}
+
+\input{sections/results}
+
+\input{sections/summary}
 
 \begin{frame}[allowframebreaks]
 	\frametitle{Bibliography}

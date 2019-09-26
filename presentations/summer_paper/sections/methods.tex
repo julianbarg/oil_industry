@@ -1,0 +1,69 @@
+\section{Methods}
+
+\begin{frame}
+	\frametitle{Before I forget...}
+	\begin{itemize}
+		\item Fixed-effect
+		\item Company-year
+	\end{itemize}
+\end{frame}
+
+\begin{frame}
+	\frametitle{Independent variable}
+	Change of the organization over time - pipeline assets.\smallbreak
+	$\rightarrow$ \textbf{Low} if the organization is not changing, or changing at constant pace.\smallbreak
+	$\rightarrow$ \textbf{High} if organization deviates from previous course.
+	
+	\hrulefill
+	
+	$A_{t} = ((C_{t} - \bar{C})^2 + (C_{t-1} - \bar{C})^2 + (C_{t-2} - \bar{C})^2) / 2$\smallbreak
+	where\smallbreak
+	$C = M_{t} - M_{t-1}$\smallbreak
+	$M$ is \textbf{M}iles of pipeline\smallbreak
+	$A$ is strategic \textbf{A}djustments\smallbreak
+\end{frame}
+
+\begin{frame}
+	\frametitle{Dependent variable}
+	Incidents - three year average
+	
+	\hrulefill
+	
+	$\bar{I} = (I_{t} + I_{t+1} + I_{t+2})/3$\smallbreak
+	where\smallbreak
+	$I$ is number of significant incidents
+\end{frame}
+
+\begin{frame}
+	\frametitle{Dependent variable}
+	Fulfill any of these four criteria:
+	\begin{itemize}
+		\item "Fatality or injury requiring in-patient hospitalization
+		\item \$50,000 or more in total costs, measured in 1984 dollars
+		\item Highly volatile liquid releases of 5 barrels or more or other liquid releases of 50 barrels or more
+		\item Liquid releases resulting in an unintentional fire or explosion
+	\end{itemize}
+	\incidentDefinition
+\end{frame}
+
+\begin{frame}
+	\frametitle{Data source}
+	Pipeline and incident data extracted from two different datasets from FERC (Federal Energy Regulatory Commission).
+	\begin{itemize}
+		\item Same dataset (incidents): \citet{Park2019}
+		\note{FERC frequently used in econometrics/economics papers, e.g., BEPP.}
+	\end{itemize}
+	M\&A, ownership data obtained from LexisNexis.
+\end{frame}
+
+\begin{frame}
+	\frametitle{Control variables}
+	\begin{itemize}
+		\item M\&As: Learning spillover that is separate from the disruption caused.
+		\item (4 out of 6 models) Year effect.
+		\item (2 out of 6 models) Consolidation and extension as two separate variables, measured more precisely than IV.
+		\note {Controlling for consolidation and extension to ensure that we are really capturing the effect of strategic adjustment, rather than effect of the specific direction.\medskip}
+		\item Controlling for age and extent of pipeline network.
+		\note {Average age, or miles by decade constructed.}
+	\end{itemize}
+\end{frame}
